@@ -1,20 +1,22 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
-import { ConfigService } from '@nestjs/config';
+import compression from 'compression';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import rateLimit from 'express-rate-limit';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
 
   // Set API version prefix
   app.setGlobalPrefix('api/v1');
 
   // Security headers
   app.use(helmet());
+
+  // Response compression
+  app.use(compression());
 
   // Rate limiting (100 requests per 15 minutes per IP)
   app.use(
@@ -35,9 +37,12 @@ async function bootstrap() {
   );
 
   // CORS configuration
-  const corsOrigins = configService.get<string[]>('corsWhitelist');
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
+    : true;
+
   app.enableCors({
-    origin: corsOrigins && corsOrigins.length > 0 ? corsOrigins : true,
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -49,53 +54,28 @@ async function bootstrap() {
     ],
   });
 
-  // Swagger setup
-  const config = new DocumentBuilder()
-    .setTitle('E-Commerce API')
-    .setDescription('The E-Commerce API documentation')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  // Swagger setup (enabled if ENABLE_SWAGGER=true or NODE_ENV !== production)
+  const isSwaggerEnabled =
+    process.env.ENABLE_SWAGGER === 'true' || process.env.NODE_ENV !== 'production';
 
-  const preferredPort =
-    configService.get<number>('port') ??
-    parseInt(process.env.PORT ?? '4000', 10) ??
-    4000;
-  const fallbackPort = preferredPort === 4000 ? 4001 : preferredPort + 1;
-
-  try {
-    await app.listen(preferredPort);
-    Logger.log(
-      `Application is running on: http://localhost:${preferredPort}/api/v1`,
-    );
-    Logger.log(
-      `Swagger docs available at: http://localhost:${preferredPort}/api/docs`,
-    );
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException;
-    if (nodeError?.code === 'EADDRINUSE') {
-      Logger.warn(
-        `Port ${preferredPort} is already in use. Attempting fallback port ${fallbackPort}...`,
-      );
-      await app.listen(fallbackPort);
-      Logger.log(
-        `Application is running on: http://localhost:${fallbackPort}/api/v1`,
-      );
-      Logger.log(
-        `Swagger docs available at: http://localhost:${fallbackPort}/api/docs`,
-      );
-    } else {
-      Logger.error(
-        'Failed to start application',
-        nodeError?.stack ?? nodeError,
-      );
-      process.exit(1);
-    }
+  if (isSwaggerEnabled) {
+    const config = new DocumentBuilder()
+      .setTitle('E-Commerce API')
+      .setDescription('The E-Commerce API documentation')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
   }
+
+  // Single startup flow
+  const port = Number(process.env.PORT) || 4000;
+  await app.listen(port);
+  Logger.log(`Application successfully listening on port ${port}`);
 }
 
 void bootstrap().catch((err) => {
   Logger.error('Bootstrap failed', err);
 });
+
