@@ -14,14 +14,23 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_ACCESS_SECRET') || 'fallback_secret',
-        signOptions: {
-          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') ||
-            '15m') as StringValue,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret =
+          configService.get<string>('JWT_ACCESS_SECRET') ||
+          configService.get<string>('jwt.accessSecret');
+        if (!secret) {
+          throw new Error(
+            'JWT_ACCESS_SECRET environment variable is missing.',
+          );
+        }
+        return {
+          secret,
+          signOptions: {
+            expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') ||
+              '15m') as StringValue,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
   ],
@@ -30,3 +39,4 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   exports: [AuthService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}
+

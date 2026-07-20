@@ -16,11 +16,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private usersService: UsersService,
   ) {
+    const secret =
+      configService.get<string>('JWT_ACCESS_SECRET') ||
+      configService.get<string>('jwt.accessSecret');
+    if (!secret) {
+      throw new Error('JWT_ACCESS_SECRET environment variable is missing.');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('JWT_ACCESS_SECRET') || 'fallback_secret',
+      secretOrKey: secret,
     });
   }
 
@@ -35,3 +40,4 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     };
   }
 }
+

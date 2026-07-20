@@ -5,9 +5,11 @@ import compression from 'compression';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import rateLimit from 'express-rate-limit';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
 
   // Set API version prefix
   app.setGlobalPrefix('api/v1');
@@ -37,9 +39,7 @@ async function bootstrap() {
   );
 
   // CORS configuration
-  const corsOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
-    : true;
+  const corsOrigins = configService.get('corsOrigins') ?? true;
 
   app.enableCors({
     origin: corsOrigins,
@@ -54,11 +54,10 @@ async function bootstrap() {
     ],
   });
 
-  // Swagger setup (enabled if ENABLE_SWAGGER=true or NODE_ENV !== production)
-  const isSwaggerEnabled =
-    process.env.ENABLE_SWAGGER === 'true' || process.env.NODE_ENV !== 'production';
+  // Swagger setup
+  const swaggerEnabled = configService.get<boolean>('swagger.enabled');
 
-  if (isSwaggerEnabled) {
+  if (swaggerEnabled) {
     const config = new DocumentBuilder()
       .setTitle('E-Commerce API')
       .setDescription('The E-Commerce API documentation')
@@ -69,8 +68,8 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  // Single startup flow
-  const port = Number(process.env.PORT) || 4000;
+  // Startup listening
+  const port = configService.get<number>('port') || 4000;
   await app.listen(port);
   Logger.log(`Application successfully listening on port ${port}`);
 }
@@ -78,4 +77,5 @@ async function bootstrap() {
 void bootstrap().catch((err) => {
   Logger.error('Bootstrap failed', err);
 });
+
 
