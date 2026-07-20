@@ -15,16 +15,22 @@ import { CartModule } from './modules/cart/cart.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: '../.env',
       load: [configuration],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        uri:
-          configService.get<string>('mongodbUri') ||
-          'mongodb://localhost:27017/ecommerce',
-      }),
+      useFactory: (configService: ConfigService) => {
+        console.log('process.env.MONGODB_URI =', process.env.MONGODB_URI);
+        console.log('config MONGODB_URI =', configService.get('MONGODB_URI'));
+        console.log('config mongodbUri =', configService.get('mongodbUri'));
+
+        return {
+          uri:
+            configService.get<string>('mongodbUri') ??
+            configService.get<string>('MONGODB_URI'),
+        };
+      },
       inject: [ConfigService],
     }),
     UsersModule,
@@ -36,4 +42,4 @@ import { CartModule } from './modules/cart/cart.module';
   controllers: [AppController, HealthController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
